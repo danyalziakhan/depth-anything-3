@@ -1,0 +1,15 @@
+einops
+kornia>=0.7.0
+safetensors
+pillow
+imageio
+opencv-python
+trimesh
+plyfile
+open3d
+e3nn
+evo
+pycolmap
+requests
+omegaconf
+huggingface_hub>=0.33.5,<2.0

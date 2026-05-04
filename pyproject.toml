@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling>=1.25", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "depth-anything-3"
+version = "0.0.0"
+description = "Depth Anything 3"
+readme = "README.md"
+requires-python = ">=3.10, <=3.13"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Danyal Zia Khan", email = "danyal6870@gmail.com" }]
+
+dependencies = [
+    "kornia>=0.7.0",
+    "einops",
+    "huggingface_hub",
+    "imageio",
+    "opencv-python",
+    "open3d",
+    "requests",
+    "pillow",
+    "omegaconf",
+    "evo",
+    "e3nn",
+    "trimesh",
+    "plyfile",
+    "safetensors",
+    "pycolmap",
+]
+
+[project.optional-dependencies]
+# CUDA acceleration packages (may require manual install steps)
+xformers = ["xformers; platform_system!='Darwin'"]
+# Note: flash-attn package is optional. PyTorch >= 2.2 includes Flash Attention
+# natively via F.scaled_dot_product_attention(). Only install flash-attn if you
+# need the absolute latest optimizations:
+#   pip install flash-attn --no-build-isolation  (requires CUDA toolkit)
+# Convenience bundles
+cuda = ["depth-anything-3[xformers]"]
+
+[project.urls]
+Homepage = "https://github.com/ByteDance-Seed/Depth-Anything-3"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/depth_anything_3"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/README.md",
+  "/pyproject.toml",
+  "/src/depth_anything_3",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
