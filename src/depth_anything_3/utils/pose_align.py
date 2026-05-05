@@ -12,44 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from __future__ import annotations
+
+import math
 
 import numpy as np
 import torch
 from evo.core.trajectory import PosePath3D
 
-from depth_anything_3.utils.geometry import affine_inverse, affine_inverse_np
-
-
-def batch_apply_alignment_to_enc(
-    rots: torch.Tensor,
-    trans: torch.Tensor,
-    scales: torch.Tensor,
-    enc_list: List[torch.Tensor],
-):
-    pass
-
-
-def batch_apply_alignment_to_ext(
-    rots: torch.Tensor, trans: torch.Tensor, scales: torch.Tensor, ext: torch.Tensor
-):
-    device, _ = ext.device, ext.dtype
-    if ext.shape[-2:] == (3, 4):
-        pad = torch.zeros((*ext.shape[:-2], 4, 4), dtype=ext.dtype, device=device)
-        pad[..., :3, :4] = ext
-        pad[..., 3, 3] = 1.0
-        ext = pad
-    pose_est = affine_inverse(ext)
-    pose_new_align_rot = rots[:, None] @ pose_est[..., :3, :3]
-    pose_new_align_trans = (
-        scales[:, None, None] * (rots[:, None] @ pose_est[..., :3, 3:])[..., 0]
-        + trans[:, None]
-    )
-    pose_new_align = torch.zeros_like(ext)
-    pose_new_align[..., :3, :3] = pose_new_align_rot
-    pose_new_align[..., :3, 3] = pose_new_align_trans
-    pose_new_align[..., 3, 3] = 1.0
-    return affine_inverse(pose_new_align)[:, :3]
+from depth_anything_3.utils.geometry import affine_inverse_np
 
 
 def batch_align_poses_umeyama(ext_ref: torch.Tensor, ext_est: torch.Tensor):
@@ -262,10 +233,10 @@ def _rand_rot():
     u1, u2, u3 = np.random.rand(3)
     q = np.array(
         [
-            np.sqrt(1 - u1) * np.sin(2 * np.math.pi * u2),
-            np.sqrt(1 - u1) * np.cos(2 * np.math.pi * u2),
-            np.sqrt(u1) * np.sin(2 * np.math.pi * u3),
-            np.sqrt(u1) * np.cos(2 * np.math.pi * u3),
+            np.sqrt(1 - u1) * np.sin(2 * math.pi * u2),
+            np.sqrt(1 - u1) * np.cos(2 * math.pi * u2),
+            np.sqrt(u1) * np.sin(2 * math.pi * u3),
+            np.sqrt(u1) * np.cos(2 * math.pi * u3),
         ]
     )
     w, x, y, z = q

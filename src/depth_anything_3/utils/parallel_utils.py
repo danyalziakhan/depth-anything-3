@@ -12,30 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
-import os
-from functools import wraps
+from __future__ import annotations
+
 from multiprocessing.pool import ThreadPool
 from threading import Thread
-from typing import Callable, Dict, List
+from typing import Callable
 
-import imageio
 from tqdm import tqdm
-
-
-def async_call_func(func):
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        loop = asyncio.get_event_loop()
-        # Use run_in_executor to run the blocking function in a separate thread
-        return await loop.run_in_executor(None, func, *args, **kwargs)
-
-    return wrapper
-
-
-def slice_func(chunk_index, chunk_dim, chunk_size):
-    """Create a slice for accessing a chunk of data along a specific dimension."""
-    return [slice(None)] * chunk_dim + [slice(chunk_index, chunk_index + chunk_size)]
 
 
 def async_call(fn):
@@ -43,23 +26,6 @@ def async_call(fn):
         Thread(target=fn, args=args, kwargs=kwargs).start()
 
     return wrapper
-
-
-def _save_image_impl(save_img, save_path):
-    """Common implementation for saving images synchronously or asynchronously"""
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    imageio.imwrite(save_path, save_img)
-
-
-@async_call
-def save_image_async(save_img, save_path):
-    """Save image asynchronously"""
-    _save_image_impl(save_img, save_path)
-
-
-def save_image(save_img, save_path):
-    """Save image synchronously"""
-    _save_image_impl(save_img, save_path)
 
 
 def parallel_execution(
@@ -78,7 +44,7 @@ def parallel_execution(
     # `*args` packs all positional arguments passed to the function into a tuple
     args = list(args)
 
-    def get_length(args: List, kwargs: Dict):
+    def get_length(args: list, kwargs: dict):
         for a in args:
             if isinstance(a, list):
                 return len(a)
@@ -87,9 +53,10 @@ def parallel_execution(
                 return len(v)
         raise NotImplementedError
 
-    def get_action_args(length: int, args: List, kwargs: Dict, i: int):
+    def get_action_args(length: int, args: list, kwargs: dict, i: int):
         action_args = [
-            (arg[i] if isinstance(arg, list) and len(arg) == length else arg) for arg in args
+            (arg[i] if isinstance(arg, list) and len(arg) == length else arg)
+            for arg in args
         ]
         # TODO: Support all types of iterable
         action_kwargs = {

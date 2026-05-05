@@ -16,7 +16,7 @@
 Alignment utilities for depth estimation and metric scaling.
 """
 
-from typing import Tuple
+from __future__ import annotations
 
 import torch
 
@@ -52,7 +52,9 @@ def least_squares_scale_scalar(
     return num / den
 
 
-def compute_sky_mask(sky_prediction: torch.Tensor, threshold: float = 0.3) -> torch.Tensor:
+def compute_sky_mask(
+    sky_prediction: torch.Tensor, threshold: float = 0.3
+) -> torch.Tensor:
     """
     Compute non-sky mask from sky prediction.
 
@@ -98,7 +100,9 @@ def compute_alignment_mask(
     )
 
 
-def sample_tensor_for_quantile(tensor: torch.Tensor, max_samples: int = 100000) -> torch.Tensor:
+def sample_tensor_for_quantile(
+    tensor: torch.Tensor, max_samples: int = 100000
+) -> torch.Tensor:
     """
     Sample tensor elements for quantile computation to reduce memory usage.
 
@@ -136,10 +140,10 @@ def apply_metric_scaling(
 
 def set_sky_regions_to_max_depth(
     depth: torch.Tensor,
-    depth_conf: torch.Tensor,
+    depth_conf: torch.Tensor | None,
     non_sky_mask: torch.Tensor,
-    max_depth: float = 200.0,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    max_depth: float | torch.Tensor = 200.0,
+) -> tuple[torch.Tensor, torch.Tensor | None]:
     """
     Set sky regions to maximum depth and high confidence.
 

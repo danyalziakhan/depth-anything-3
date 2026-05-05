@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import matplotlib
 import numpy as np
 
 
@@ -41,6 +40,9 @@ def visualize_depth(
         Colored depth visualization as numpy array
         If ret_minmax=True, also returns depth_min and depth_max
     """
+
+    import matplotlib
+
     depth = depth.copy()
     depth.copy()
     valid_mask = depth > 0

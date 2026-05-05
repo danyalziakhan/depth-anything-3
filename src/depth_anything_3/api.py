@@ -21,7 +21,8 @@ inference, and export capabilities. It supports both single and nested model arc
 from __future__ import annotations
 
 import time
-from typing import Optional, Sequence
+from collections.abc import Callable
+from typing import Any, Sequence
 
 import numpy as np
 import torch
@@ -155,7 +156,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
 
     def _create_model(self) -> nn.Module:
         """Create and return new model instance on correct device."""
-        model = create_object(self.config)
+        model = create_object(self.config)  # type: ignore
         model = model.to(self.device)  # Move to device before caching
         model.eval()
         return model
@@ -170,7 +171,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         infer_gs: bool = False,
         use_ray_pose: bool = False,
         ref_view_strategy: str = "saddle_balanced",
-    ) -> dict[str, torch.Tensor]:
+    ) -> Any:
         """
         Forward pass through the model.
 
@@ -235,7 +236,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         num_max_points: int = 1_000_000,
         show_cameras: bool = True,
         # Other export parameters, e.g., gs_ply
-        export_kwargs: Optional[dict] = {},
+        export_kwargs: dict | None = {},
     ) -> Prediction:
         """
         Run inference on input images.
@@ -272,12 +273,14 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
             )
 
         # Preprocess images
-        imgs_cpu, extrinsics, intrinsics = self._preprocess_inputs(
+        imgs_cpu, extrinsics_tensor, intrinsics_tensor = self._preprocess_inputs(
             image, extrinsics, intrinsics, process_res, process_res_method
         )
 
         # Prepare tensors for model
-        imgs, ex_t, in_t = self._prepare_model_inputs(imgs_cpu, extrinsics, intrinsics)
+        imgs, ex_t, in_t = self._prepare_model_inputs(
+            imgs_cpu, extrinsics_tensor, intrinsics_tensor
+        )
 
         # Normalize extrinsics
         ex_t_norm = self._normalize_extrinsics(
@@ -304,7 +307,10 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
 
         # Align prediction to extrinsincs
         prediction = self._align_to_input_extrinsics_intrinsics(
-            extrinsics, intrinsics, prediction, align_to_input_ext_scale
+            extrinsics_tensor,
+            intrinsics_tensor,
+            prediction,
+            align_to_input_ext_scale,
         )
 
         # Add processed images for visualization
@@ -312,7 +318,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
 
         # Export if requested
         if export_dir is not None:
-            # Add GLB export parameters
+            export_kwargs = export_kwargs or {}
             if "glb" in export_format:
                 if "glb" not in export_kwargs:
                     export_kwargs["glb"] = {}
@@ -347,7 +353,6 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         process_res: int = 504,
         process_res_method: str = "upper_bound_resize",
     ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
-        """Preprocess input images using input processor."""
         start_time = time.time()
 
         # Determine normalization strategy:
@@ -361,7 +366,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         ):
             perform_norm = False
 
-        imgs_cpu, extrinsics, intrinsics = self.input_processor(
+        imgs_cpu, extrinsics_tensor, intrinsics_tensor = self.input_processor(
             image,
             extrinsics.copy() if extrinsics is not None else None,
             intrinsics.copy() if intrinsics is not None else None,
@@ -376,7 +381,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
             "seconds. Shape: ",
             imgs_cpu.shape,
         )
-        return imgs_cpu, extrinsics, intrinsics
+        return imgs_cpu, extrinsics_tensor, intrinsics_tensor
 
     def _prepare_model_inputs(
         self,
@@ -476,8 +481,17 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         ransac_view_thresh: int = 10,
     ) -> Prediction:
         """Align depth map to input extrinsics"""
-        if extrinsics is None:
+        if extrinsics is None or prediction.extrinsics is None:
+            logger.warn(
+                "Extrinsics are None. Skipping alignment. "
+                "Ensure that extrinsics are provided and that the model predicts extrinsics if alignment is desired."
+            )
             return prediction
+
+        if intrinsics is None:
+            logger.warn("Intrinsics are None. Skipping alignment.")
+            return prediction
+
         prediction.intrinsics = intrinsics.numpy()
         _, _, scale, aligned_extrinsics = align_poses_umeyama(
             prediction.extrinsics,
@@ -502,7 +516,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         infer_gs: bool = False,
         use_ray_pose: bool = False,
         ref_view_strategy: str = "saddle_balanced",
-    ) -> dict[str, torch.Tensor]:
+    ) -> Any:
         """Run model forward pass."""
         device = imgs.device
         need_sync = device.type == "cuda"
@@ -521,7 +535,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         logger.info(f"Model Forward Pass Done. Time: {end_time - start_time} seconds")
         return output
 
-    def _convert_to_prediction(self, raw_output: dict[str, torch.Tensor]) -> Prediction:
+    def _convert_to_prediction(self, raw_output: Any) -> Prediction:
         """Convert raw model output to Prediction object."""
         start_time = time.time()
         output = self.output_processor(raw_output)
@@ -597,7 +611,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         batch_size: int | str = "auto",
         max_batch_size: int = 64,
         target_memory_utilization: float = 0.85,
-        progress_callback: callable | None = None,
+        progress_callback: Callable | None = None,
     ) -> list[Prediction]:
         """
         Run inference on multiple images with adaptive batching.

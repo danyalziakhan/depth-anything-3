@@ -12,5 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-DEFAULT_MODEL = "depth-anything/DA3NESTED-GIANT-LARGE-1.1"
 THRESH_FOR_REF_SELECTION = 3

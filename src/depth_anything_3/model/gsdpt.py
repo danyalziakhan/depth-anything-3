@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict as TyDict
-from typing import List, Sequence
+from __future__ import annotations
+
+from typing import Any, Sequence
 
 import torch
 import torch.nn as nn
@@ -23,7 +24,6 @@ from depth_anything_3.model.utils.head_utils import activate_head_gs, custom_int
 
 
 class GSDPT(DPT):
-
     def __init__(
         self,
         dim_in: int,
@@ -57,9 +57,9 @@ class GSDPT(DPT):
         )
         self.conf_dim = conf_dim
         if conf_dim and conf_dim > 1:
-            assert (
-                conf_activation == "linear"
-            ), "use linear prediction when using view-dependent opacity"
+            assert conf_activation == "linear", (
+                "use linear prediction when using view-dependent opacity"
+            )
 
         merger_out_dim = features if feature_only else features // 2
         self.images_merger = nn.Sequential(
@@ -74,14 +74,14 @@ class GSDPT(DPT):
     # -------------------------------------------------------------------------
     # Internal forward (single chunk)
     # -------------------------------------------------------------------------
-    def _forward_impl(
+    def _forward_impl(  # type: ignore
         self,
-        feats: List[torch.Tensor],
+        feats: list[torch.Tensor],
         H: int,
         W: int,
         patch_start_idx: int,
         images: torch.Tensor,
-    ) -> TyDict[str, torch.Tensor]:
+    ) -> dict[str, torch.Tensor]:
         B, _, C = feats[0].shape
         ph, pw = H // self.patch_size, W // self.patch_size
         resized_feats = []
@@ -98,13 +98,16 @@ class GSDPT(DPT):
 
         # 2) Fusion pyramid (main branch only)
         fused = self._fuse(resized_feats)
-        fused = self.scratch.output_conv1(fused)
+        scratch: Any = self.scratch
+        fused = scratch.output_conv1(fused)
 
         # 3) Upsample to target resolution, optionally add position encoding again
         h_out = int(ph * self.patch_size / self.down_ratio)
         w_out = int(pw * self.patch_size / self.down_ratio)
 
-        fused = custom_interpolate(fused, (h_out, w_out), mode="bilinear", align_corners=True)
+        fused = custom_interpolate(
+            fused, (h_out, w_out), mode="bilinear", align_corners=True
+        )
 
         # inject the image information here
         fused = fused + self.images_merger(images)
@@ -117,8 +120,8 @@ class GSDPT(DPT):
         feat = fused
 
         # 5) Main head: logits -> activate_head or single channel activation
-        main_logits = self.scratch.output_conv2(feat)
-        outs: TyDict[str, torch.Tensor] = {}
+        main_logits = scratch.output_conv2(feat)
+        outs: dict[str, torch.Tensor] = {}
         if self.has_conf:
             pred, conf = activate_head_gs(
                 main_logits,

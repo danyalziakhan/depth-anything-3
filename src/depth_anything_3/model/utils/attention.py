@@ -14,7 +14,9 @@
 
 # Modified from: https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/vision_transformer.py#L103-L110 # noqa
 
-from typing import Callable, Optional, Union
+from __future__ import annotations
+
+from typing import Callable
 
 import torch
 import torch.nn.functional as F
@@ -30,7 +32,7 @@ class Attention(nn.Module):
         proj_bias: bool = True,
         attn_drop: float = 0.0,
         proj_drop: float = 0.0,
-        norm_layer: nn.Module = nn.LayerNorm,
+        norm_layer: type[nn.Module] = nn.LayerNorm,
         qk_norm: bool = False,
         rope=None,
     ) -> None:
@@ -50,7 +52,11 @@ class Attention(nn.Module):
     def forward(self, x: Tensor, pos=None, attn_mask=None) -> Tensor:
         # Debug breakpoint removed for production
         B, N, C = x.shape
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        qkv = (
+            self.qkv(x)
+            .reshape(B, N, 3, self.num_heads, self.head_dim)
+            .permute(2, 0, 3, 1, 4)
+        )
         q, k, v = qkv.unbind(0)
         q, k = self.q_norm(q), self.k_norm(k)
         q = self.rope(q, pos) if self.rope is not None else q
@@ -72,7 +78,7 @@ class LayerScale(nn.Module):
     def __init__(
         self,
         dim: int,
-        init_values: Union[float, Tensor] = 1e-5,
+        init_values: float | Tensor = 1e-5,
         inplace: bool = False,
     ) -> None:
         super().__init__()
@@ -87,8 +93,8 @@ class Mlp(nn.Module):
     def __init__(
         self,
         in_features: int,
-        hidden_features: Optional[int] = None,
-        out_features: Optional[int] = None,
+        hidden_features: int | None = None,
+        out_features: int | None = None,
         act_layer: Callable[..., nn.Module] = nn.GELU,
         drop: float = 0.0,
         bias: bool = True,

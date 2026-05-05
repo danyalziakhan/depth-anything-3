@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import torch
@@ -46,7 +47,7 @@ def export_ply(
     path: Path,
     shift_and_scale: bool = False,
     save_sh_dc_only: bool = True,
-    match_3dgs_mcmc_dev: Optional[bool] = False,
+    match_3dgs_mcmc_dev: bool | None = False,
 ):
     if shift_and_scale:
         # Shift the scene so that the median Gaussian is at the origin.
@@ -114,10 +115,10 @@ def save_gaussian_ply(
     shift_and_scale: bool = False,
     save_sh_dc_only: bool = True,
     gs_views_interval: int = 1,
-    inv_opacity: Optional[bool] = True,
-    prune_by_depth_percent: Optional[float] = 1.0,
-    prune_border_gs: Optional[bool] = True,
-    match_3dgs_mcmc_dev: Optional[bool] = False,
+    inv_opacity: bool | None = True,
+    prune_by_depth_percent: float | None = 1.0,
+    prune_border_gs: bool | None = True,
+    match_3dgs_mcmc_dev: bool | None = False,
 ):
     b = gaussians.means.shape[0]
     assert b == 1, "must set batch_size=1 when exporting 3D gaussians"
@@ -128,7 +129,9 @@ def save_gaussian_ply(
     world_shs = gaussians.harmonics
     world_rotations = gaussians.rotations
     gs_scales = gaussians.scales
-    gs_opacities = inverse_sigmoid(gaussians.opacities) if inv_opacity else gaussians.opacities
+    gs_opacities = (
+        inverse_sigmoid(gaussians.opacities) if inv_opacity else gaussians.opacities
+    )
 
     # Create a mask to filter the Gaussians.
 
@@ -158,7 +161,9 @@ def save_gaussian_ply(
         selected_element = rearrange(
             element[0], "(v h w) ... -> v h w ...", v=src_v, h=out_h, w=out_w
         )
-        selected_element = selected_element[::gs_views_interval][mask[::gs_views_interval]]
+        selected_element = selected_element[::gs_views_interval][
+            mask[::gs_views_interval]
+        ]
         return selected_element
 
     export_ply(

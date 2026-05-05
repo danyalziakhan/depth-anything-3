@@ -16,9 +16,11 @@
 Configuration utility functions
 """
 
+from __future__ import annotations
+
 import importlib
 from pathlib import Path
-from typing import Any, Callable, Union
+from typing import Any, Callable
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
@@ -29,9 +31,7 @@ except Exception as e:
     print(f"Error registering eval resolver: {e}")
 
 
-def load_config(
-    path: str, argv: list[str] | None = None
-) -> Union[DictConfig, ListConfig]:
+def load_config(path: str, argv: list[str] | None = None) -> DictConfig | ListConfig:
     """
     Load a configuration. Will resolve inheritance.
     Supports both file paths and module paths (e.g., depth_anything_3.configs.giant).
@@ -58,7 +58,7 @@ def load_config(
 
 def resolve_recursive(
     config: Any,
-    resolver: Callable[[Union[DictConfig, ListConfig]], Union[DictConfig, ListConfig]],
+    resolver: Callable[[DictConfig | ListConfig], DictConfig | ListConfig],
 ) -> Any:
     config = resolver(config)
     if isinstance(config, DictConfig):
@@ -74,7 +74,7 @@ def resolve_recursive(
     return config
 
 
-def resolve_inheritance(config: Union[DictConfig, ListConfig]) -> Any:
+def resolve_inheritance(config: DictConfig | ListConfig) -> Any:
     """
     Recursively resolve inheritance if the config contains:
     __inherit__: path/to/parent.yaml or a ListConfig of such paths.
@@ -97,7 +97,7 @@ def resolve_inheritance(config: Union[DictConfig, ListConfig]) -> Any:
             if len(config.keys()) > 0:
                 config = OmegaConf.merge(parent_config, config)
             else:
-                config = parent_config
+                config = parent_config  # type: ignore
     return config
 
 
@@ -126,9 +126,9 @@ def create_object(config: DictConfig) -> Any:
     if args == "as_config":
         return item(config)
     if args == "as_params":
-        config = OmegaConf.to_object(config)
+        config = OmegaConf.to_object(config)  # type: ignore
         config.pop("__object__")
-        return item(**config)
+        return item(**config)  # type: ignore
     raise NotImplementedError(f"Unknown args type: {args}")
 
 

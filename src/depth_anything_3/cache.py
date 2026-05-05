@@ -8,7 +8,8 @@ This significantly reduces latency for repeated model creation (2-5s gain).
 from __future__ import annotations
 
 import threading
-from typing import Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -37,7 +38,7 @@ class ModelCache:
         - Use clear_device() to clear specific device models
     """
 
-    _instance: Optional["ModelCache"] = None
+    _instance: "ModelCache | None" = None
     _lock = threading.Lock()
 
     def __new__(cls):
@@ -54,7 +55,7 @@ class ModelCache:
         if self._initialized:
             return
 
-        self._cache: Dict[Tuple[str, str], nn.Module] = {}
+        self._cache: dict[tuple[str, str], nn.Module] = {}
         self._cache_lock = threading.Lock()
         self._initialized = True
         logger.info("ModelCache initialized")
@@ -63,7 +64,7 @@ class ModelCache:
         self,
         model_name: str,
         device: torch.device | str,
-        loader_fn: callable,
+        loader_fn: Callable,
     ) -> nn.Module:
         """
         Get cached model or load if not in cache.
@@ -143,12 +144,18 @@ class ModelCache:
             # Free device memory
             if "cuda" in device_str and torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            elif "mps" in device_str and hasattr(torch, "mps") and torch.backends.mps.is_available():
+            elif (
+                "mps" in device_str
+                and hasattr(torch, "mps")
+                and torch.backends.mps.is_available()
+            ):
                 torch.mps.empty_cache()
 
-            logger.info(f"Model cache cleared for device {device_str} ({len(keys_to_remove)} models removed)")
+            logger.info(
+                f"Model cache cleared for device {device_str} ({len(keys_to_remove)} models removed)"
+            )
 
-    def get_cache_info(self) -> Dict[str, int]:
+    def get_cache_info(self) -> dict[str, Any]:
         """
         Get cache statistics.
 

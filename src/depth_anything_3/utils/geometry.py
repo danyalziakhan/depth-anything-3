@@ -12,8 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
+
 from types import SimpleNamespace
-from typing import Optional
 
 import numpy as np
 import torch
@@ -84,20 +85,6 @@ def affine_inverse_np(A: np.ndarray):
         ],
         axis=-2,
     )
-
-
-def _sqrt_positive_part(x: torch.Tensor) -> torch.Tensor:
-    """
-    Returns torch.sqrt(torch.max(0, x))
-    but with a zero subgradient where x is 0.
-    """
-    ret = torch.zeros_like(x)
-    positive_mask = x > 0
-    if torch.is_grad_enabled():
-        ret[positive_mask] = torch.sqrt(x[positive_mask])
-    else:
-        ret = torch.where(positive_mask, torch.sqrt(x), ret)
-    return ret
 
 
 def sample_image_grid(
@@ -202,27 +189,10 @@ def get_world_rays(
     return origins, directions
 
 
-def get_fov(intrinsics: torch.Tensor) -> torch.Tensor:  # "batch 3 3" -> "batch 2"
-    intrinsics_inv = intrinsics.float().inverse().to(intrinsics)
-
-    def process_vector(vector):
-        vector = torch.tensor(vector, dtype=intrinsics.dtype, device=intrinsics.device)
-        vector = einsum(intrinsics_inv, vector, "b i j, j -> b i")
-        return vector / vector.norm(dim=-1, keepdim=True)
-
-    left = process_vector([0, 0.5, 1])
-    right = process_vector([1, 0.5, 1])
-    top = process_vector([0.5, 0, 1])
-    bottom = process_vector([0.5, 1, 1])
-    fov_x = (left * right).sum(dim=-1).acos()
-    fov_y = (top * bottom).sum(dim=-1).acos()
-    return torch.stack((fov_x, fov_y), dim=-1)
-
-
 def map_pdf_to_opacity(
     pdf: torch.Tensor,  # " *batch"
     global_step: int = 0,
-    opacity_mapping: Optional[dict] = None,
+    opacity_mapping: dict | None = None,
 ) -> torch.Tensor:  # " *batch"
     # https://www.desmos.com/calculator/opvwti3ba9
 
@@ -307,24 +277,6 @@ def camera_space_to_pixel_space(camera_space_points, intrinsics):
         "b u i j , b v u h w j -> b v u h w i", intrinsics, camera_space_points
     )
     return pixel_space_points[..., :2]
-
-
-def world_space_to_camera_space(world_space_points, c2w):
-    """
-    Convert world space points to pixel space points.
-
-    Args:
-        world_space_points (torch.Tensor): World space points with shape (b, v1, h, w, 3)
-        c2w (torch.Tensor): Camera to world extrinsics matrix with shape (b, v2, 4, 4)
-
-    Returns:
-        torch.Tensor: Camera space points with shape (b, v1, v2, h, w, 3).
-    """
-    world_space_points = homogenize_points(world_space_points)
-    camera_space_points = torch.einsum(
-        "b u i j , b v h w j -> b v u h w i", c2w.inverse(), world_space_points
-    )
-    return camera_space_points[..., :3]
 
 
 def unproject_depth(

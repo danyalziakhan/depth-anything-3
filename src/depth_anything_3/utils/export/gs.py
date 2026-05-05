@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import os
-from typing import Optional
 
 import torch
 
@@ -24,9 +25,8 @@ from depth_anything_3.utils.gsply_helpers import save_gaussian_ply
 def export_to_gs_ply(
     prediction: Prediction,
     export_dir: str,
-    gs_views_interval: Optional[
-        int
-    ] = 1,  # export GS every N views, useful for extremely dense inputs
+    gs_views_interval: int
+    | None = 1,  # export GS every N views, useful for extremely dense inputs
 ):
     gs_world = prediction.gaussians
     if not gs_world:
