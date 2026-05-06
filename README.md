@@ -8,7 +8,6 @@ This repository builds upon the original [Depth Anything V3](https://github.com/
 
 This implementation includes the following changes:
 
-- **Batch inference support**: Efficient processing of multiple inputs simultaneously
 - **NVJPEG support**: Hardware-accelerated JPEG decoding for improved throughput
 - **Improved model loading and caching**: Streamlined model initialization and cache management
 - **Full precision exports**: Depth and confidence maps are saved with full numerical precision
