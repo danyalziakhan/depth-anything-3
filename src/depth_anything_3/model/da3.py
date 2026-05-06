@@ -122,6 +122,7 @@ class DepthAnything3Net(nn.Module):
         infer_gs: bool = False,
         use_ray_pose: bool = False,
         ref_view_strategy: str = "saddle_balanced",
+        dpt_chunk_size: int = 0,
     ) -> Any:
         """
         Forward pass through the network.
@@ -134,6 +135,7 @@ class DepthAnything3Net(nn.Module):
             infer_gs: Enable Gaussian Splatting branch
             use_ray_pose: Use ray-based pose estimation
             ref_view_strategy: Strategy for selecting reference view
+            dpt_chunk_size: Frames per chunk in the DPT decoder (0 = no chunking)
 
         Returns:
             Dictionary containing predictions and auxiliary features
@@ -156,7 +158,7 @@ class DepthAnything3Net(nn.Module):
 
         # Process features through depth head
         with torch.autocast(device_type=x.device.type, enabled=False):
-            output = self._process_depth_head(feats, H, W)
+            output = self._process_depth_head(feats, H, W, chunk_size=dpt_chunk_size)
             if use_ray_pose:
                 output = self._process_ray_pose_estimation(output, H, W)
             else:
@@ -231,9 +233,11 @@ class DepthAnything3Net(nn.Module):
             output.intrinsics = pred_intrinsic
         return output
 
-    def _process_depth_head(self, feats: list[torch.Tensor], H: int, W: int) -> Any:
+    def _process_depth_head(self, feats: list[torch.Tensor], H: int, W: int, chunk_size: int = 0) -> Any:
         """Process features through the depth prediction head."""
-        return self.head(feats, H, W, patch_start_idx=0)
+        # chunk_size=0 means no chunking (process all frames at once)
+        effective_chunk = None if chunk_size == 0 else chunk_size
+        return self.head(feats, H, W, patch_start_idx=0, chunk_size=effective_chunk)
 
     def _process_camera_estimation(
         self, feats: list[torch.Tensor], H: int, W: int, output: Any
@@ -371,6 +375,7 @@ class NestedDepthAnything3Net(nn.Module):
         infer_gs: bool = False,
         use_ray_pose: bool = False,
         ref_view_strategy: str = "saddle_balanced",
+        dpt_chunk_size: int = 0,
     ) -> Any:
         """
         Forward pass through both branches with metric scaling alignment.
@@ -383,6 +388,7 @@ class NestedDepthAnything3Net(nn.Module):
             infer_gs: Enable Gaussian Splatting branch
             use_ray_pose: Use ray-based pose estimation
             ref_view_strategy: Strategy for selecting reference view
+            dpt_chunk_size: Frames per chunk in the DPT decoder (0 = no chunking)
 
         Returns:
             Dictionary containing aligned depth predictions and camera parameters
@@ -396,8 +402,9 @@ class NestedDepthAnything3Net(nn.Module):
             infer_gs=infer_gs,
             use_ray_pose=use_ray_pose,
             ref_view_strategy=ref_view_strategy,
+            dpt_chunk_size=dpt_chunk_size,
         )
-        metric_output = self.da3_metric(x)
+        metric_output = self.da3_metric(x, dpt_chunk_size=dpt_chunk_size)
 
         # Apply metric scaling and alignment
         output = self._apply_metric_scaling(output, metric_output)

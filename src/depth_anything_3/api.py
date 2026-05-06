@@ -41,8 +41,8 @@ from depth_anything_3.utils.io.output_processor import OutputProcessor
 from depth_anything_3.utils.logger import logger
 from depth_anything_3.utils.pose_align import align_poses_umeyama
 
-torch.backends.cudnn.benchmark = False
-# logger.info("CUDNN Benchmark Disabled")
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 
 SAFETENSORS_NAME = "model.safetensors"
 CONFIG_NAME = "config.json"
@@ -152,6 +152,11 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         model = create_object(self.config)  # type: ignore
         model = model.to(self.device)  # Move to device before caching
         model.eval()
+        # Log which attention backend will be used (checked once at model creation)
+        for module in model.modules():
+            if hasattr(module, "attn_backend"):
+                logger.info(f"Attention backend in use: {module.attn_backend}")
+                break
         return model
 
     @torch.inference_mode()
@@ -164,6 +169,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         infer_gs: bool = False,
         use_ray_pose: bool = False,
         ref_view_strategy: str = "saddle_balanced",
+        dpt_chunk_size: int = 0,
     ) -> Any:
         """
         Forward pass through the model.
@@ -208,6 +214,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
                         infer_gs,
                         use_ray_pose,
                         ref_view_strategy,
+                        dpt_chunk_size,
                     )
 
     def inference(
@@ -224,6 +231,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         export_dir: str | None = None,
         export_format: str = "mini_npz",
         export_feat_layers: Sequence[int] | None = None,
+        dpt_chunk_size: int = 0,
         # GLB export parameters
         conf_thresh_percentile: float = 40.0,
         num_max_points: int = 1_000_000,
@@ -252,6 +260,10 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
             conf_thresh_percentile: [GLB] Lower percentile for adaptive confidence threshold (default: 40.0) # noqa: E501
             num_max_points: [GLB] Maximum number of points in the point cloud (default: 1,000,000)
             show_cameras: [GLB] Show camera wireframes in the exported scene (default: True)
+            dpt_chunk_size: Number of frames processed together through the DPT decoder head.
+                0 (default) = no chunking — all frames processed at once (fastest, uses most VRAM).
+                Positive values (e.g. 4, 8) split the decoder into smaller batches, reducing peak
+                VRAM at the cost of slightly longer decode time. Useful when VRAM is scarce.
             export_kwargs: additional arguments to export functions.
 
         Returns:
@@ -293,6 +305,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
             infer_gs,
             use_ray_pose,
             ref_view_strategy,
+            dpt_chunk_size,
         )
 
         # Convert raw output to prediction
@@ -504,6 +517,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         infer_gs: bool = False,
         use_ray_pose: bool = False,
         ref_view_strategy: str = "saddle_balanced",
+        dpt_chunk_size: int = 0,
     ) -> Any:
         """Run model forward pass."""
         device = imgs.device
@@ -515,7 +529,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
             list(export_feat_layers) if export_feat_layers is not None else None
         )
         output = self.forward(
-            imgs, ex_t, in_t, feat_layers, infer_gs, use_ray_pose, ref_view_strategy
+            imgs, ex_t, in_t, feat_layers, infer_gs, use_ray_pose, ref_view_strategy, dpt_chunk_size
         )
         if need_sync:
             torch.cuda.synchronize(device)

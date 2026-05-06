@@ -27,9 +27,9 @@ try:
 
     FLASH_ATTN_AVAILABLE = True
     FLASH_ATTN_VERSION = flash_attn_version
-    logger.info(f"Flash Attention v{flash_attn_version} available")
-except ImportError:
-    logger.debug("flash-attn not installed, using PyTorch SDPA backend")
+    logger.warning(f"Flash Attention v{flash_attn_version} available")
+except ImportError as e:
+    logger.warning(f"flash-attn not installed, using PyTorch SDPA backend: {e}")
 
 
 def get_attention_backend() -> str:
@@ -104,7 +104,7 @@ class Attention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
         self.rope = rope
 
-        logger.debug(f"Attention initialized with backend: {self.attn_backend}")
+        logger.info(f"Attention initialized with backend: {self.attn_backend}")
 
     def _flash_attention(
         self, q: Tensor, k: Tensor, v: Tensor, attn_mask: Tensor | None
@@ -135,7 +135,7 @@ class Attention(nn.Module):
         # It supports causal masking via causal=True flag
         # For non-causal with custom mask, fall back to SDPA
         if attn_mask is not None:
-            logger.debug("Flash Attention: custom mask not supported, falling back to SDPA")
+            logger.warning("Flash Attention: custom mask not supported, falling back to SDPA")
             return self._sdpa_attention(
                 q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2), attn_mask
             )
@@ -197,6 +197,10 @@ class Attention(nn.Module):
         elif self.attn_backend == "sdpa" or (
             self.attn_backend == "flash_attn" and not FLASH_ATTN_AVAILABLE
         ):
+            if self.attn_backend == "flash_attn":
+                logger.warning(
+                    "Flash Attention backend selected but flash-attn not available, falling back to SDPA"
+                )
             x = self._sdpa_attention(q, k, v, attn_mask)
         else:
             x = self._manual_attention(q, k, v, attn_mask)
