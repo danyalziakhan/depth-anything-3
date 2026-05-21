@@ -59,7 +59,9 @@ class GPUInputProcessor(InputProcessor):
             )
         elif self._device.type == "cuda":
             self._use_gpu = True
-            logger.info("GPUInputProcessor initialized with device=cuda (NVJPEG enabled)")
+            logger.info(
+                "GPUInputProcessor initialized with device=cuda (NVJPEG enabled)"
+            )
         else:
             self._use_gpu = False
             logger.warn(
@@ -69,8 +71,12 @@ class GPUInputProcessor(InputProcessor):
 
         # Pre-create Kornia normalize transform on GPU
         if self._use_gpu:
-            mean = torch.tensor([0.485, 0.456, 0.406], device=self._device).view(1, 3, 1, 1)
-            std = torch.tensor([0.229, 0.224, 0.225], device=self._device).view(1, 3, 1, 1)
+            mean = torch.tensor([0.485, 0.456, 0.406], device=self._device).view(
+                1, 3, 1, 1
+            )
+            std = torch.tensor([0.229, 0.224, 0.225], device=self._device).view(
+                1, 3, 1, 1
+            )
             self._kornia_mean = mean
             self._kornia_std = std
 
@@ -126,7 +132,7 @@ class GPUInputProcessor(InputProcessor):
                 intrinsic,
                 process_res=process_res,
                 process_res_method=process_res_method,
-                perform_normalization=perform_normalization
+                perform_normalization=perform_normalization,
             )
 
         orig_w, orig_h = 0, 0
@@ -142,29 +148,33 @@ class GPUInputProcessor(InputProcessor):
                 # Read raw bytes from file
                 with open(img, "rb") as f:
                     # Read bytes -> numpy array (uint8) -> torch tensor
-                    file_bytes = torch.from_numpy(np.frombuffer(f.read(), dtype=np.uint8))
+                    file_bytes = torch.from_numpy(
+                        np.frombuffer(f.read(), dtype=np.uint8).copy()
+                    ).to(self._device)
 
                 ext = os.path.splitext(img)[1].lower()
 
                 # 1. CUDA Optimized Path (NVJPEG)
                 if self._device.type == "cuda" and ext in (".jpg", ".jpeg"):
-                    img_tensor = torchvision.io.decode_jpeg(file_bytes, device=self._device)
+                    img_tensor = torchvision.io.decode_jpeg(
+                        file_bytes, device=self._device
+                    )
 
                 # 2. Generic Path (MPS or non-JPG on CUDA)
                 # decode_image is generally faster than PIL for loading into tensors
                 else:
                     if ext in (".png", ".jpg", ".jpeg"):
-                         # decode_image supports many formats
-                         # We move to device immediately after decoding
-                         img_tensor = torchvision.io.decode_image(img).to(self._device)
+                        # decode_image supports many formats
+                        # We move to device immediately after decoding
+                        img_tensor = torchvision.io.decode_image(img).to(self._device)
                     else:
-                         # Fallback for exotic formats
-                         img_tensor = None
+                        # Fallback for exotic formats
+                        img_tensor = None
 
                 if img_tensor is not None:
                     # Ensure (1, 3, H, W) float32 [0, 1]
                     if img_tensor.dim() == 3:
-                        img_tensor = img_tensor.unsqueeze(0) # Add batch dim
+                        img_tensor = img_tensor.unsqueeze(0)  # Add batch dim
 
                     _, c, h, w = img_tensor.shape
                     orig_h, orig_w = h, w
@@ -178,7 +188,9 @@ class GPUInputProcessor(InputProcessor):
                     img_tensor = img_tensor.float() / 255.0
 
             except Exception as e:
-                logger.warn(f"Accelerated decoding failed for {img} on {self._device}, falling back to PIL: {e}")
+                logger.warn(
+                    f"Accelerated decoding failed for {img} on {self._device}, falling back to PIL: {e}"
+                )
                 img_tensor = None
 
         # Fallback to PIL loading if GPU decoding failed or not applicable
@@ -196,11 +208,15 @@ class GPUInputProcessor(InputProcessor):
         if process_res_method.endswith("resize"):
             img_tensor = self._make_divisible_by_resize_gpu(img_tensor, self.PATCH_SIZE)
             _, _, h_final, w_final = img_tensor.shape
-            intrinsic = self._resize_ixt(intrinsic, w_resized, h_resized, w_final, h_final)
+            intrinsic = self._resize_ixt(
+                intrinsic, w_resized, h_resized, w_final, h_final
+            )
         elif process_res_method.endswith("crop"):
             img_tensor = self._make_divisible_by_crop_gpu(img_tensor, self.PATCH_SIZE)
             _, _, h_final, w_final = img_tensor.shape
-            intrinsic = self._crop_ixt(intrinsic, w_resized, h_resized, w_final, h_final)
+            intrinsic = self._crop_ixt(
+                intrinsic, w_resized, h_resized, w_final, h_final
+            )
         else:
             raise ValueError(f"Unsupported process_res_method: {process_res_method}")
 
@@ -220,7 +236,9 @@ class GPUInputProcessor(InputProcessor):
         """Convert PIL Image to GPU tensor (1, 3, H, W) float32 [0,1]."""
         # PIL → numpy → torch → GPU
         arr = np.array(img)  # (H, W, 3) uint8
-        tensor = torch.from_numpy(arr).permute(2, 0, 1).float() / 255.0  # (3, H, W) float32
+        tensor = (
+            torch.from_numpy(arr).permute(2, 0, 1).float() / 255.0
+        )  # (3, H, W) float32
         tensor = tensor.unsqueeze(0).to(self._device)  # (1, 3, H, W) on GPU
         return tensor
 

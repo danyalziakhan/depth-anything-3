@@ -529,7 +529,14 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
             list(export_feat_layers) if export_feat_layers is not None else None
         )
         output = self.forward(
-            imgs, ex_t, in_t, feat_layers, infer_gs, use_ray_pose, ref_view_strategy, dpt_chunk_size
+            imgs,
+            ex_t,
+            in_t,
+            feat_layers,
+            infer_gs,
+            use_ray_pose,
+            ref_view_strategy,
+            dpt_chunk_size,
         )
         if need_sync:
             torch.cuda.synchronize(device)
